@@ -9,7 +9,7 @@
 #include <SPI.h>
 #include <BleKeyboard.h>
 
-BleKeyboard bleKeyboard;
+BleKeyboard bleKeyboard("KICKR BIKE BTNS", "QWERTYnd", 100);
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 TFT_eSprite img = TFT_eSprite(&tft); // define a frame buffer
@@ -594,9 +594,7 @@ static void checkButtonState(void)
 
 void setup(void) 
 {
-  Serial.begin(115200);
-  bleKeyboard.setName("Kickr Bike Buttons");
-  BLEDevice::init("");
+  bleKeyboard.begin();
   tft.init();
   tft.setRotation(screenRotation);
   tft.setTextSize(1);
@@ -614,7 +612,7 @@ void setup(void)
   p_bleScan->start(11, false);
   updateDisplay();
 
-  bleKeyboard.begin();
+  
 }
 
 void loop(void) 
