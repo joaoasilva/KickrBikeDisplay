@@ -1,4 +1,5 @@
-## This Fork
+## ESP32-S3 KICKR BIKE Buttons with bluetooth keyboard mappings
+
 ![image](https://github.com/joaoasilva/KickrBikeDisplay/assets/3317453/100b2ff8-7dc2-43d6-ba9f-c584ac252bbc)
 
 - Pressing both buttons of the Lilygo device changes orientation so you can have the usb on the left or right
