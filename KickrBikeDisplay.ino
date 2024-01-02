@@ -1,12 +1,15 @@
 /************************************************************************************
 * Wahoo Kickr Display 
-* Claus Jensen 24.12.2023
-* Based on Jay Wheeler project from 23.12.2023
+* Joao Silva 02.01.2024
+* Based on Claus Jensen project from 24.12.2023
 ****************************************************************************************/
 
 #include "BLEDevice.h"
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 #include <SPI.h>
+#include <BleKeyboard.h>
+
+BleKeyboard bleKeyboard;
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 TFT_eSprite img = TFT_eSprite(&tft); // define a frame buffer
@@ -15,9 +18,15 @@ TFT_eSprite img = TFT_eSprite(&tft); // define a frame buffer
 #define RESOLUTION_X 320
 #define RESOLUTION_Y 170
 
-// BUTTONS
+// LILYGO BUTTONS
 #define BOTTOM_BUTTON_PIN 0
 #define TOP_BUTTON_PIN 14
+
+// KICKR BUTTONS
+#define TOP_RIGHT_BUTTON KEY_MEDIA_MUTE
+#define BOTTOM_RIGHT_BUTTON KEY_NUM_PERIOD
+#define SIDE_RIGHT_BUTTON KEY_MEDIA_NEXT_TRACK
+#define SIDE_LEFT_BUTTON KEY_MEDIA_PREVIOUS_TRACK
 
 typedef enum 
 {
@@ -36,12 +45,14 @@ static STATE state = STATE_INIT;
 // BLE Service (UUID is case sensitive)
 static BLEUUID serviceGearingUUID("a026ee0d-0a7d-4ab3-97fa-f1500f9feb8b");
 static BLEUUID charGearingUUID("a026e03a-0a7d-4ab3-97fa-f1500f9feb8b");
+static BLEUUID charButtonsUUID("a026e03c-0a7d-4ab3-97fa-f1500f9feb8b");
 //for currentGradient
 static BLEUUID serviceGradientUUID("a026ee0b-0a7d-4ab3-97fa-f1500f9feb8b");
 static BLEUUID charGradientUUID("a026e037-0a7d-4ab3-97fa-f1500f9feb8b");
 /* --------------------------------------------------------------------------*/
 
 static BLERemoteCharacteristic *p_gearingCharacteristic;
+static BLERemoteCharacteristic *p_buttonsCharacteristic;
 static BLERemoteCharacteristic *p_gradientCharacteristic;
 
 /* Blutooth device connection */
@@ -53,6 +64,7 @@ static String bleDeviceName = "";
 /* Buttons */
 static bool topButtonState = true;
 static bool bottomButtonState = true;
+static uint8_t screenRotation = 3;
 
 /*** Gradient ***/
 static bool tiltLock = true;
@@ -64,6 +76,19 @@ static uint8_t rearGear = 3;
 static uint8_t nofFrontGears = 2;
 static uint8_t nofRearGears = 12;
 static bool    gearingLimitReached = false;
+
+/* Buttons */
+static String buttonConnectionMessage = "";
+static bool sideLeftPressing = false;
+static bool sideRightPressing = false;
+static bool topRightPressing = false;
+static bool bottomRightPressing = false;
+
+static void updateButtonMessage(void) {
+  img.setTextColor(TFT_ORANGE, TFT_BLACK);
+  img.drawString(buttonConnectionMessage, RESOLUTION_X/2, RESOLUTION_Y/2 - 15, 2);
+  img.pushSprite(0,0);
+}
 
 /*************************************************************
  * Data received functions...
@@ -82,6 +107,65 @@ static void gradientReceived(uint8_t* p_data, size_t nofBytes)
     temp  = temp << 8;
     temp += p_data[2];
     currentGradient = (int16_t)temp;
+  }
+}
+
+static void buttonsReceived(uint8_t* p_data, size_t nofBytes)
+{
+  if (bleKeyboard.isConnected()) 
+  {
+    // Top right
+    if (p_data[0] == 0x00 && p_data[1] == 0x01) {
+      if (topRightPressing) {
+        bleKeyboard.release(TOP_RIGHT_BUTTON);
+        topRightPressing = false;
+        buttonConnectionMessage = "";
+      } else {
+        bleKeyboard.press(TOP_RIGHT_BUTTON);
+        topRightPressing = true;
+        buttonConnectionMessage = "Top Right Pressed";
+      }
+    }
+    // Bottom right
+    if (p_data[0] == 0x80 && p_data[1] == 0x00) {
+      if (bottomRightPressing) {
+        bleKeyboard.release(BOTTOM_RIGHT_BUTTON);
+        bottomRightPressing = false;
+        buttonConnectionMessage = "";
+      } else {
+        bleKeyboard.press(BOTTOM_RIGHT_BUTTON);
+        bottomRightPressing = true;
+        buttonConnectionMessage = "Bottom Right Pressed";
+      }
+    }
+    // Side right
+    if (p_data[0] == 0x00 && p_data[1] == 0x08) {
+      if (sideRightPressing) {
+        bleKeyboard.release(SIDE_RIGHT_BUTTON);
+        sideRightPressing = false;
+        buttonConnectionMessage = "";
+      } else {
+        bleKeyboard.press(SIDE_RIGHT_BUTTON);
+        sideRightPressing = true;
+        buttonConnectionMessage = "Side Right Pressed";
+      }
+    }
+    // Side left
+    if (p_data[0] == 0x20 && p_data[1] == 0x00) {
+      if (sideLeftPressing) {
+        bleKeyboard.release(SIDE_LEFT_BUTTON);
+        sideLeftPressing = false;
+        buttonConnectionMessage = "";
+      } else {
+        bleKeyboard.press(SIDE_LEFT_BUTTON);
+        sideLeftPressing = true;
+        buttonConnectionMessage = "Side Left Pressed";
+      }
+    }
+  }
+  else
+  {
+    buttonConnectionMessage = "Buttons not paired";
   }
 }
 
@@ -274,12 +358,26 @@ static void updateDisplay(void)
   static STATE previousState = NOF_STATES;
   static String buttonString;
 
-  if((bottomButtonState == false) && (topButtonState == false))
-      buttonString = "T B ";
+  if((bottomButtonState == false) && (topButtonState == false)) {
+      // Inverting the display
+      if (screenRotation == 1) {
+        screenRotation = 3;
+      }
+      else 
+      {
+        screenRotation = 1;
+      }
+      tft.setRotation(screenRotation);
+      buttonString = String(screenRotation);
+  }
   else if (bottomButtonState == false)
+  {
       buttonString = "B ";
-  else if (topButtonState == false) 
+  }
+  else if (topButtonState == false)
+  {
       buttonString = "T ";
+  }
   else 
     buttonString = "";
 
@@ -295,6 +393,7 @@ static void updateDisplay(void)
     // Connected - just update all values
     updateGear();
     updateGradient();
+    updateButtonMessage();
   } 
   else 
   {
@@ -390,6 +489,19 @@ static bool connectToDevice(void)
     p_gearingCharacteristic->registerForNotify(notifyCallbackGearing);
   }
 
+  // Obtain a reference to the characteristic in the service of the remote BLE server.
+  p_buttonsCharacteristic = p_remoteService->getCharacteristic(charButtonsUUID);
+  if (p_buttonsCharacteristic == nullptr) 
+  {
+    p_client->disconnect();
+    return false;
+  }
+  // Register notify-function
+  if(p_buttonsCharacteristic->canNotify())
+  {
+    p_buttonsCharacteristic->registerForNotify(notifyCallbackButtons);
+  }
+
   // Obtain a reference to the gradient servicein the remote BLE server.
   p_remoteService = p_client->getService(serviceGradientUUID);
   if (p_remoteService == nullptr) 
@@ -418,6 +530,14 @@ static bool connectToDevice(void)
     std::copy(value.begin(), value.end(), std::begin(rxDataArray));
     gearingReceived(rxDataArray, value.size());
   }
+  // Read the buttons values
+  if(p_buttonsCharacteristic->canRead()) 
+  {
+    uint8_t rxDataArray[32];
+    std::string value = p_buttonsCharacteristic->readValue();
+    std::copy(value.begin(), value.end(), std::begin(rxDataArray));
+    buttonsReceived(rxDataArray, value.size());
+  }
   // Read the gradient values
   if(p_gradientCharacteristic->canRead()) 
   {
@@ -437,6 +557,11 @@ static void notifyCallbackGradient(BLERemoteCharacteristic *p_BLERemoteCharacter
 static void notifyCallbackGearing(BLERemoteCharacteristic *p_BLERemoteCharacteristic, uint8_t* p_data, size_t nofBytes, bool isNotify) 
 {
   gearingReceived(p_data, nofBytes);
+}
+
+static void notifyCallbackButtons(BLERemoteCharacteristic *p_BLERemoteCharacteristic, uint8_t* p_data, size_t nofBytes, bool isNotify) 
+{
+  buttonsReceived(p_data, nofBytes);
 }
 
 /***************************************************************
@@ -470,9 +595,10 @@ static void checkButtonState(void)
 void setup(void) 
 {
   Serial.begin(115200);
+  bleKeyboard.setName("Kickr Bike Buttons");
   BLEDevice::init("");
   tft.init();
-  tft.setRotation(1);
+  tft.setRotation(screenRotation);
   tft.setTextSize(1);
   tft.fillScreen(TFT_BLACK);
   img.createSprite(RESOLUTION_X, RESOLUTION_Y);
@@ -487,6 +613,8 @@ void setup(void)
   p_bleScan->setActiveScan(true);
   p_bleScan->start(11, false);
   updateDisplay();
+
+  bleKeyboard.begin();
 }
 
 void loop(void) 
