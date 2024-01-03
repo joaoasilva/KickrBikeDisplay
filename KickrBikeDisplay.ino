@@ -388,7 +388,7 @@ static void updateDisplay(void)
       buttonString = "T ";
   }
   else 
-    buttonString = String(lastUsedTime);
+    buttonString = "";
 
   // We clear everything every time...
   img.fillRect(0, 0, RESOLUTION_X, RESOLUTION_Y, TFT_BLACK);
