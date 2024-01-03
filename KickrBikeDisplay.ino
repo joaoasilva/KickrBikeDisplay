@@ -64,7 +64,7 @@ static String bleDeviceName = "";
 /* Buttons */
 static bool topButtonState = true;
 static bool bottomButtonState = true;
-static uint8_t screenRotation = 3;
+static uint8_t screenRotation = 1;
 
 /*** Gradient ***/
 static bool tiltLock = true;
@@ -130,6 +130,7 @@ static void buttonsReceived(uint8_t* p_data, size_t nofBytes)
         topRightPressing = true;
         buttonConnectionMessage = "Top Right Pressed";
       }
+      lastUsedTime = millis();
     }
     // Bottom right
     if (p_data[0] == 0x80 && p_data[1] == 0x00) {
@@ -142,6 +143,7 @@ static void buttonsReceived(uint8_t* p_data, size_t nofBytes)
         bottomRightPressing = true;
         buttonConnectionMessage = "Bottom Right Pressed";
       }
+      lastUsedTime = millis();
     }
     // Side right
     if (p_data[0] == 0x00 && p_data[1] == 0x08) {
@@ -154,6 +156,7 @@ static void buttonsReceived(uint8_t* p_data, size_t nofBytes)
         sideRightPressing = true;
         buttonConnectionMessage = "Side Right Pressed";
       }
+      lastUsedTime = millis();
     }
     // Side left
     if (p_data[0] == 0x20 && p_data[1] == 0x00) {
@@ -166,13 +169,13 @@ static void buttonsReceived(uint8_t* p_data, size_t nofBytes)
         sideLeftPressing = true;
         buttonConnectionMessage = "Side Left Pressed";
       }
+      lastUsedTime = millis();
     }
   }
   else
   {
     buttonConnectionMessage = "Buttons not paired";
   }
-  lastUsedTime = millis();
 }
 
 static void gearingReceived(uint8_t* p_data, size_t nofBytes) 
@@ -385,7 +388,7 @@ static void updateDisplay(void)
       buttonString = "T ";
   }
   else 
-    buttonString = "";
+    buttonString = String(lastUsedTime);
 
   // We clear everything every time...
   img.fillRect(0, 0, RESOLUTION_X, RESOLUTION_Y, TFT_BLACK);
