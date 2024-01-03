@@ -84,6 +84,10 @@ static bool sideRightPressing = false;
 static bool topRightPressing = false;
 static bool bottomRightPressing = false;
 
+/* SLEEP MODE */
+static long lastUsedTime = millis();
+static long sleepTimeOut = 1000 * 60 * 30; // Sleep after 30 minutes if no buttons pressed or gradient not changed
+
 static void updateButtonMessage(void) {
   img.setTextColor(TFT_ORANGE, TFT_BLACK);
   img.drawString(buttonConnectionMessage, RESOLUTION_X/2, RESOLUTION_Y/2 - 15, 2);
@@ -108,6 +112,7 @@ static void gradientReceived(uint8_t* p_data, size_t nofBytes)
     temp += p_data[2];
     currentGradient = (int16_t)temp;
   }
+  lastUsedTime = millis();
 }
 
 static void buttonsReceived(uint8_t* p_data, size_t nofBytes)
@@ -167,6 +172,7 @@ static void buttonsReceived(uint8_t* p_data, size_t nofBytes)
   {
     buttonConnectionMessage = "Buttons not paired";
   }
+  lastUsedTime = millis();
 }
 
 static void gearingReceived(uint8_t* p_data, size_t nofBytes) 
@@ -611,12 +617,17 @@ void setup(void)
   p_bleScan->setActiveScan(true);
   p_bleScan->start(11, false);
   updateDisplay();
-
-  
 }
 
 void loop(void) 
 {
+  // Check if the ESP32 has been used
+  if (millis() - lastUsedTime > sleepTimeOut) {
+    // Power off the ESP32
+    esp_deep_sleep_start();
+    return;
+  }
+
   if(state == STATE_FOUND) 
   {
     updateDisplay();
