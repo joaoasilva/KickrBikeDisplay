@@ -18,3 +18,8 @@ To change the keyboard mappings change the following:
 #define SIDE_RIGHT_BUTTON KEY_MEDIA_NEXT_TRACK
 #define SIDE_LEFT_BUTTON KEY_MEDIA_PREVIOUS_TRACK
 ```
+
+To change the sleep time out change:
+```
+static long sleepTimeOut = 1000 * 60 * 30;
+```
