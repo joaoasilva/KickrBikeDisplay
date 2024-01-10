@@ -28,10 +28,10 @@ TFT_eSprite img = TFT_eSprite(&tft); // define a frame buffer
 #define TOP_BUTTON_PIN 14
 
 // KICKR BUTTONS
-#define TOP_RIGHT_BUTTON KEY_MEDIA_MUTE
-#define BOTTOM_RIGHT_BUTTON KEY_NUM_PERIOD
-#define SIDE_RIGHT_BUTTON KEY_MEDIA_NEXT_TRACK
-#define SIDE_LEFT_BUTTON KEY_MEDIA_PREVIOUS_TRACK
+#define TOP_RIGHT_BUTTON KEY_MEDIA_NEXT_TRACK
+#define BOTTOM_RIGHT_BUTTON KEY_MEDIA_PREVIOUS_TRACK
+#define SIDE_RIGHT_BUTTON KEY_NUM_PERIOD
+#define SIDE_LEFT_BUTTON KEY_MEDIA_MUTE
 
 typedef enum 
 {
@@ -126,6 +126,7 @@ static void gradientReceived(uint8_t* p_data, size_t nofBytes)
 }
 
 static void updateInteraction(void) {
+  sendToHA(true);
   lastUsedTime = millis();
 }
 
@@ -396,8 +397,8 @@ static void updateDisplay(void)
   else if (bottomButtonState == false)
   {
     sendToHA(false);
-    buttonString = "HA Turn off will sleep in 5 seconds";
-    delay(5000);
+    buttonString = "HA Turn off will sleep in 2 seconds";
+    delay(2000);
     // Power off the ESP32
     esp_deep_sleep_start();
   }
@@ -652,7 +653,6 @@ void setup(void)
   updateDisplay();
 
   wifiMulti.addAP(AP_SSID, AP_PWD);
-  sendToHA(true);
 }
 
 void loop(void) 
@@ -687,8 +687,10 @@ void loop(void)
 }
 
 void sendToHA(bool state){
-  if(wifiMulti.run() == WL_CONNECTED)
+  if (millis() - lastUsedTime > httpCallTime)
   {
+    if(wifiMulti.run() == WL_CONNECTED)
+    {
       HTTPClient http;
 
       // Your Domain name with URL path or IP address with path
@@ -709,7 +711,9 @@ void sendToHA(bool state){
       String requestBody;
       serializeJson(data, requestBody);
       int httpResponseCode  = http.POST(requestBody);
+      httpCallTime = 1000 * 60; // Only do an http call every minute max
 
       http.end();
+    }
   }
 }
