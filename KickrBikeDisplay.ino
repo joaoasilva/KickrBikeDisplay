@@ -396,7 +396,10 @@ static void updateDisplay(void)
   else if (bottomButtonState == false)
   {
     sendToHA(false);
-    buttonString = "HA Turn off ";
+    buttonString = "HA Turn off will sleep in 5 seconds";
+    delay(5000);
+    // Power off the ESP32
+    esp_deep_sleep_start();
   }
   else if (topButtonState == false)
   {
@@ -657,6 +660,7 @@ void loop(void)
   // Check if the ESP32 has been used
   if (millis() - lastUsedTime > sleepTimeOut) {
     sendToHA(false);
+    delay(1000);
     // Power off the ESP32
     esp_deep_sleep_start();
     return;
