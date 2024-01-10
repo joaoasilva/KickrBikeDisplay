@@ -23,3 +23,14 @@ To change the sleep time out change:
 ```
 static long sleepTimeOut = 1000 * 60 * 30;
 ```
+
+
+If you use Home Assistant you can connect it to your wifi and update a binary sensor https://www.home-assistant.io/integrations/http/#sensor
+
+Just add a token to your user on HA and use it for authentication and update the following fields:
+```
+static String httpToken = <Secret token>;
+const char *AP_SSID = <SSID>;
+const char *AP_PWD = <PASSWORD>;
+const char *SERVER_NAME = <HA Binary Sensor url>;
+```
