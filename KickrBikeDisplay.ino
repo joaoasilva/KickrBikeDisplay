@@ -126,7 +126,6 @@ static void gradientReceived(uint8_t* p_data, size_t nofBytes)
 }
 
 static void updateInteraction(void) {
-  sendToHA(true);
   lastUsedTime = millis();
 }
 
@@ -650,6 +649,7 @@ void setup(void)
   updateDisplay();
 
   wifiMulti.addAP(AP_SSID, AP_PWD);
+  sendToHA(true);
 }
 
 void loop(void) 
