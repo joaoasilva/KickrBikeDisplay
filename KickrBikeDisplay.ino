@@ -8,6 +8,11 @@
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 #include <SPI.h>
 #include <BleKeyboard.h>
+#include <WiFiMulti.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+
+WiFiMulti wifiMulti;
 
 BleKeyboard bleKeyboard("KICKR BIKE BTNS", "QWERTYnd", 100);
 
@@ -94,6 +99,11 @@ static void updateButtonMessage(void) {
   img.pushSprite(0,0);
 }
 
+static String httpToken = <Secret token>;
+const char *AP_SSID = <SSID>;
+const char *AP_PWD = <PASSWORD>;
+const char *SERVER_NAME = <HA Binary Sensor url>;
+
 /*************************************************************
  * Data received functions...
  ************************************************************/
@@ -112,6 +122,11 @@ static void gradientReceived(uint8_t* p_data, size_t nofBytes)
     temp += p_data[2];
     currentGradient = (int16_t)temp;
   }
+  updateInteraction();
+}
+
+static void updateInteraction(void) {
+  sendToHA(true);
   lastUsedTime = millis();
 }
 
@@ -130,7 +145,7 @@ static void buttonsReceived(uint8_t* p_data, size_t nofBytes)
         topRightPressing = true;
         buttonConnectionMessage = "Top Right Pressed";
       }
-      lastUsedTime = millis();
+      updateInteraction();
     }
     // Bottom right
     if (p_data[0] == 0x80 && p_data[1] == 0x00) {
@@ -143,7 +158,7 @@ static void buttonsReceived(uint8_t* p_data, size_t nofBytes)
         bottomRightPressing = true;
         buttonConnectionMessage = "Bottom Right Pressed";
       }
-      lastUsedTime = millis();
+      updateInteraction();
     }
     // Side right
     if (p_data[0] == 0x00 && p_data[1] == 0x08) {
@@ -156,7 +171,7 @@ static void buttonsReceived(uint8_t* p_data, size_t nofBytes)
         sideRightPressing = true;
         buttonConnectionMessage = "Side Right Pressed";
       }
-      lastUsedTime = millis();
+      updateInteraction();
     }
     // Side left
     if (p_data[0] == 0x20 && p_data[1] == 0x00) {
@@ -169,7 +184,7 @@ static void buttonsReceived(uint8_t* p_data, size_t nofBytes)
         sideLeftPressing = true;
         buttonConnectionMessage = "Side Left Pressed";
       }
-      lastUsedTime = millis();
+      updateInteraction();
     }
   }
   else
@@ -381,11 +396,13 @@ static void updateDisplay(void)
   }
   else if (bottomButtonState == false)
   {
-      buttonString = "B ";
+    sendToHA(false);
+    buttonString = "HA Turn off ";
   }
   else if (topButtonState == false)
   {
-      buttonString = "T ";
+    sendToHA(true);
+    buttonString = "HA Turn on ";
   }
   else 
     buttonString = "";
@@ -395,7 +412,7 @@ static void updateDisplay(void)
   
   // And put our discrete debug-info for buttons in the corner...
   img.setTextColor(TFT_ORANGE, TFT_BLACK);
-  img.drawString(buttonString, 0, RESOLUTION_Y - 16, 2);
+  img.drawString(buttonString, 65, RESOLUTION_Y - 16, 2);
 
   if(state == STATE_CONNECTED) 
   {
@@ -419,6 +436,7 @@ static void updateDisplay(void)
     img.setTextColor(TFT_SKYBLUE, TFT_BLACK);
     img.drawString("Wahoo Kickr Display", 0, 0, 4);
     img.drawString(stateString, 0, 52, 4);
+
     if((state != STATE_CONNECTED) && (state != STATE_FOUND))
     {
       img.drawString("Scan Count: " + String(scanCount), 0, 78, 4);
@@ -427,7 +445,17 @@ static void updateDisplay(void)
     {
       img.drawString(bleDeviceName, 0, 78, 4);
     }
+
+    if(wifiMulti.run() == WL_CONNECTED)
+    {
+      img.drawString("Wifi connected", 0, 108, 4);
+    }
+    else
+    {
+      img.drawString("Wifi disconnected", 0, 108, 4);
+    }
   }
+  
   img.pushSprite(0,0);
 }
 
@@ -620,12 +648,15 @@ void setup(void)
   p_bleScan->setActiveScan(true);
   p_bleScan->start(11, false);
   updateDisplay();
+
+  wifiMulti.addAP(AP_SSID, AP_PWD);
 }
 
 void loop(void) 
 {
   // Check if the ESP32 has been used
   if (millis() - lastUsedTime > sleepTimeOut) {
+    sendToHA(false);
     // Power off the ESP32
     esp_deep_sleep_start();
     return;
@@ -649,4 +680,32 @@ void loop(void)
   checkButtonState();
   updateDisplay();
   delay(100); // Delay 100 milliseconds
-} 
+}
+
+void sendToHA(bool state){
+  if(wifiMulti.run() == WL_CONNECTED)
+  {
+      HTTPClient http;
+
+      // Your Domain name with URL path or IP address with path
+      http.begin(String(SERVER_NAME));
+      http.addHeader("Content-Type", "application/json");
+      http.setConnectTimeout(1000);
+      Serial.println("Posting to HA");
+      String bearer = "Bearer "+httpToken;
+      http.addHeader("Authorization", bearer);
+
+      StaticJsonDocument<200> data;
+      if (state) {
+        data["state"] = "on";
+      } else {
+        data["state"] = "off";
+      }
+      
+      String requestBody;
+      serializeJson(data, requestBody);
+      int httpResponseCode  = http.POST(requestBody);
+
+      http.end();
+  }
+}
