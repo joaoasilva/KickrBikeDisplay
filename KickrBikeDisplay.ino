@@ -13,6 +13,7 @@
 #include <ArduinoJson.h>
 
 WiFiMulti wifiMulti;
+HTTPClient http;
 
 BleKeyboard bleKeyboard("KICKR BIKE BTNS", "QWERTYnd", 100);
 
@@ -103,6 +104,8 @@ static String httpToken = <Secret token>;
 const char *AP_SSID = <SSID>;
 const char *AP_PWD = <PASSWORD>;
 const char *SERVER_NAME = <HA Binary Sensor url>;
+static long httpCallTime = 1000 * 10; // Only do an HTTP Call every 10s max
+static long lastHttpCallTime = millis();
 
 /*************************************************************
  * Data received functions...
@@ -632,8 +635,40 @@ static void checkButtonState(void)
   }
 }
 
+static void sendToHA(bool state){
+  if (millis() - lastHttpCallTime > httpCallTime)
+  {
+    if(wifiMulti.run() == WL_CONNECTED)
+    {
+      lastHttpCallTime = millis();
+      http.begin(String(SERVER_NAME));
+      http.addHeader("Content-Type", "application/json");
+      http.setConnectTimeout(100);
+      Serial.println("Posting to HA");
+      String bearer = "Bearer "+httpToken;
+      http.addHeader("Authorization", bearer);
+
+      StaticJsonDocument<200> data;
+      if (state) {
+        data["state"] = "on";
+      } else {
+        data["state"] = "off";
+      }
+      
+      String requestBody;
+      serializeJson(data, requestBody);
+      int httpResponseCode  = http.POST(requestBody);
+      Serial.println(httpResponseCode);
+
+      http.end();
+    }
+  }
+}
+
 void setup(void) 
 {
+  //Serial.begin(9600);
+
   bleKeyboard.begin();
   tft.init();
   tft.setRotation(screenRotation);
@@ -684,36 +719,4 @@ void loop(void)
   checkButtonState();
   updateDisplay();
   delay(100); // Delay 100 milliseconds
-}
-
-void sendToHA(bool state){
-  if (millis() - lastUsedTime > httpCallTime)
-  {
-    if(wifiMulti.run() == WL_CONNECTED)
-    {
-      HTTPClient http;
-
-      // Your Domain name with URL path or IP address with path
-      http.begin(String(SERVER_NAME));
-      http.addHeader("Content-Type", "application/json");
-      http.setConnectTimeout(1000);
-      Serial.println("Posting to HA");
-      String bearer = "Bearer "+httpToken;
-      http.addHeader("Authorization", bearer);
-
-      StaticJsonDocument<200> data;
-      if (state) {
-        data["state"] = "on";
-      } else {
-        data["state"] = "off";
-      }
-      
-      String requestBody;
-      serializeJson(data, requestBody);
-      int httpResponseCode  = http.POST(requestBody);
-      httpCallTime = 1000 * 60; // Only do an http call every minute max
-
-      http.end();
-    }
-  }
 }
