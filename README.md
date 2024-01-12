@@ -1,4 +1,4 @@
-## ESP32-S3 KICKR BIKE Buttons with bluetooth keyboard mappings
+## ESP32-S3 KICKR BIKE Buttons with bluetooth keyboard mappings and Home Assistant integration
 
 ![image](https://github.com/joaoasilva/KickrBikeDisplay/assets/3317453/100b2ff8-7dc2-43d6-ba9f-c584ac252bbc)
 
