@@ -104,8 +104,7 @@ static String httpToken = <Secret token>;
 const char *AP_SSID = <SSID>;
 const char *AP_PWD = <PASSWORD>;
 const char *SERVER_NAME = <HA Binary Sensor url>;
-static long httpCallTime = 1000 * 10; // Only do an HTTP Call every 10s max
-static long lastHttpCallTime = millis();
+static bool alreadySentToHA = false;
 
 /*************************************************************
  * Data received functions...
@@ -129,7 +128,6 @@ static void gradientReceived(uint8_t* p_data, size_t nofBytes)
 }
 
 static void updateInteraction(void) {
-  sendToHA(true);
   lastUsedTime = millis();
 }
 
@@ -636,32 +634,30 @@ static void checkButtonState(void)
 }
 
 static void sendToHA(bool state){
-  if (millis() - lastHttpCallTime > httpCallTime)
-  {
-    if(wifiMulti.run() == WL_CONNECTED)
-    {
-      lastHttpCallTime = millis();
-      http.begin(String(SERVER_NAME));
-      http.addHeader("Content-Type", "application/json");
-      http.setConnectTimeout(100);
-      Serial.println("Posting to HA");
-      String bearer = "Bearer "+httpToken;
-      http.addHeader("Authorization", bearer);
+  if(wifiMulti.run() == WL_CONNECTED)
+  {    
+    Serial.println("Connection begin");
 
-      StaticJsonDocument<200> data;
-      if (state) {
-        data["state"] = "on";
-      } else {
-        data["state"] = "off";
-      }
-      
-      String requestBody;
-      serializeJson(data, requestBody);
-      int httpResponseCode  = http.POST(requestBody);
-      Serial.println(httpResponseCode);
+    http.begin(String(SERVER_NAME));
+    http.addHeader("Content-Type", "application/json");
+    http.setConnectTimeout(100);
+    Serial.println("Posting to HA");
+    String bearer = "Bearer "+httpToken;
+    http.addHeader("Authorization", bearer);
 
-      http.end();
+    StaticJsonDocument<200> data;
+    if (state) {
+      data["state"] = "on";
+    } else {
+      data["state"] = "off";
     }
+    
+    String requestBody;
+    serializeJson(data, requestBody);
+    int httpResponseCode  = http.POST(requestBody);
+    Serial.println(httpResponseCode);
+
+    http.end();
   }
 }
 
@@ -701,6 +697,11 @@ void loop(void)
     return;
   }
 
+  if(wifiMulti.run() == WL_CONNECTED && alreadySentToHA == false)
+  {
+    alreadySentToHA = true;
+    sendToHA(true);
+  }
   if(state == STATE_FOUND) 
   {
     updateDisplay();
