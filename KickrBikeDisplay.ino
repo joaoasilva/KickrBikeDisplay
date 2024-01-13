@@ -397,11 +397,8 @@ static void updateDisplay(void)
   }
   else if (bottomButtonState == false)
   {
-    sendToHA(false);
-    buttonString = "HA Turn off will sleep in 2 seconds";
-    delay(2000);
-    // Power off the ESP32
-    esp_deep_sleep_start();
+    buttonString = "Shutting down";
+    sleepTimeOut = 0;
   }
   else if (topButtonState == false)
   {
@@ -636,15 +633,7 @@ static void checkButtonState(void)
 static void sendToHA(bool state){
   if(wifiMulti.run() == WL_CONNECTED)
   {    
-    Serial.println("Connection begin");
-
-    http.begin(String(SERVER_NAME));
-    http.addHeader("Content-Type", "application/json");
-    http.setConnectTimeout(100);
-    Serial.println("Posting to HA");
-    String bearer = "Bearer "+httpToken;
-    http.addHeader("Authorization", bearer);
-
+    // Serial.println("Posting to HA");
     StaticJsonDocument<200> data;
     if (state) {
       data["state"] = "on";
@@ -655,15 +644,13 @@ static void sendToHA(bool state){
     String requestBody;
     serializeJson(data, requestBody);
     int httpResponseCode  = http.POST(requestBody);
-    Serial.println(httpResponseCode);
-
-    http.end();
+    // Serial.println(httpResponseCode);
   }
 }
 
 void setup(void) 
 {
-  //Serial.begin(9600);
+  // Serial.begin(9600);
 
   bleKeyboard.begin();
   tft.init();
@@ -691,17 +678,12 @@ void loop(void)
   // Check if the ESP32 has been used
   if (millis() - lastUsedTime > sleepTimeOut) {
     sendToHA(false);
-    delay(1000);
+    delay(3000);
     // Power off the ESP32
     esp_deep_sleep_start();
     return;
   }
 
-  if(wifiMulti.run() == WL_CONNECTED && alreadySentToHA == false)
-  {
-    alreadySentToHA = true;
-    sendToHA(true);
-  }
   if(state == STATE_FOUND) 
   {
     updateDisplay();
@@ -719,5 +701,18 @@ void loop(void)
   }
   checkButtonState();
   updateDisplay();
+  
+  if(wifiMulti.run() == WL_CONNECTED && alreadySentToHA == false)
+  {
+    alreadySentToHA = true;
+    // Serial.println("Connection begin");
+
+    http.begin(String(SERVER_NAME));
+    http.addHeader("Content-Type", "application/json");
+    http.setConnectTimeout(1000);
+    String bearer = "Bearer "+httpToken;
+    http.addHeader("Authorization", bearer);
+    sendToHA(true);
+  }
   delay(100); // Delay 100 milliseconds
 }
