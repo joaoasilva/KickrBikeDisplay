@@ -13,7 +13,11 @@
 #include <ArduinoJson.h>
 
 WiFiMulti wifiMulti;
-HTTPClient http;
+
+static String httpToken = <Secret token>;
+const char *AP_SSID = <SSID>;
+const char *AP_PWD = <PASSWORD>;
+const char *SERVER_NAME = <HA Binary Sensor url>;
 
 BleKeyboard bleKeyboard("KICKR BIKE BTNS", "QWERTYnd", 100);
 
@@ -100,10 +104,6 @@ static void updateButtonMessage(void) {
   img.pushSprite(0,0);
 }
 
-static String httpToken = <Secret token>;
-const char *AP_SSID = <SSID>;
-const char *AP_PWD = <PASSWORD>;
-const char *SERVER_NAME = <HA Binary Sensor url>;
 static bool alreadySentToHA = false;
 
 /*************************************************************
@@ -394,16 +394,20 @@ static void updateDisplay(void)
       }
       tft.setRotation(screenRotation);
       buttonString = String(screenRotation);
+      updateInteraction();
   }
   else if (bottomButtonState == false)
   {
+    sendToHA(false);
     buttonString = "Shutting down";
-    sleepTimeOut = 0;
+    sleepTimeOut = 3000;
+    updateInteraction();
   }
   else if (topButtonState == false)
   {
     sendToHA(true);
     buttonString = "HA Turn on ";
+    updateInteraction();
   }
   else 
     buttonString = "";
@@ -632,7 +636,15 @@ static void checkButtonState(void)
 
 static void sendToHA(bool state){
   if(wifiMulti.run() == WL_CONNECTED)
-  {    
+  {
+    // Serial.println("Connection begin");
+    HTTPClient http;
+    http.begin(String(SERVER_NAME));
+    http.setConnectTimeout(1000);
+    http.addHeader("Content-Type", "application/json");
+    String bearer = "Bearer "+httpToken;
+    http.addHeader("Authorization", bearer);
+
     // Serial.println("Posting to HA");
     StaticJsonDocument<200> data;
     if (state) {
@@ -645,6 +657,7 @@ static void sendToHA(bool state){
     serializeJson(data, requestBody);
     int httpResponseCode  = http.POST(requestBody);
     // Serial.println(httpResponseCode);
+    http.end();
   }
 }
 
@@ -677,8 +690,6 @@ void loop(void)
 {
   // Check if the ESP32 has been used
   if (millis() - lastUsedTime > sleepTimeOut) {
-    sendToHA(false);
-    delay(3000);
     // Power off the ESP32
     esp_deep_sleep_start();
     return;
@@ -705,13 +716,6 @@ void loop(void)
   if(wifiMulti.run() == WL_CONNECTED && alreadySentToHA == false)
   {
     alreadySentToHA = true;
-    // Serial.println("Connection begin");
-
-    http.begin(String(SERVER_NAME));
-    http.addHeader("Content-Type", "application/json");
-    http.setConnectTimeout(1000);
-    String bearer = "Bearer "+httpToken;
-    http.addHeader("Authorization", bearer);
     sendToHA(true);
   }
   delay(100); // Delay 100 milliseconds
